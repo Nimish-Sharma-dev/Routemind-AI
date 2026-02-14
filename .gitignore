@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+# Virtual Environment
+venv/
+# Jupyter
+.ipynb_checkpoints/
+# OS
+.DS_Store
+# Logs
+*.log
+# Models
+*.pt
+*.pth
+*.pkl

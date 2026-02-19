@@ -4,12 +4,13 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import joblib
+from torch.utils.data import DataLoader, TensorDataset
 
 # ------------------------
 # Load Dataset
 # ------------------------
 
-df = pd.read_csv("backend/ml/density/traffic_data.csv")
+df = pd.read_csv("backend/ml/data/combined_dataset.csv")
 
 data = df["vehicle_count"].values.reshape(-1, 1)
 
@@ -24,8 +25,7 @@ joblib.dump(scaler, "scaler.save")
 # Create Sequences
 # ------------------------
 
-sequence_length = 5
-
+sequence_length = 24
 X = []
 y = []
 
@@ -41,7 +41,7 @@ X_tensor = torch.tensor(X, dtype=torch.float32)
 y_tensor = torch.tensor(y, dtype=torch.float32)
 
 # ------------------------
-# Time-based Split (NO random split)
+# Time-based Split
 # ------------------------
 
 train_size = int(len(X_tensor) * 0.8)
@@ -53,11 +53,20 @@ y_train = y_tensor[:train_size]
 y_test = y_tensor[train_size:]
 
 # ------------------------
+# Create DataLoader (FIX)
+# ------------------------
+
+batch_size = 64
+
+train_dataset = TensorDataset(X_train, y_train)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+
+# ------------------------
 # Define LSTM Model
 # ------------------------
 
 class LSTMRegressor(nn.Module):
-    def __init__(self, input_size=1, hidden_size=32):
+    def __init__(self, input_size=1, hidden_size=64):
         super(LSTMRegressor, self).__init__()
         self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
         self.fc = nn.Linear(hidden_size, 1)
@@ -73,23 +82,28 @@ criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # ------------------------
-# Training Loop
+# Training Loop (Mini-Batch)
 # ------------------------
 
-EPOCHS = 50
+EPOCHS = 80
 
 for epoch in range(EPOCHS):
     model.train()
+    total_loss = 0
 
-    outputs = model(X_train)
-    loss = criterion(outputs, y_train)
+    for batch_X, batch_y in train_loader:
+        outputs = model(batch_X)
+        loss = criterion(outputs, batch_y)
 
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
 
     if (epoch + 1) % 10 == 0:
-        print(f"Epoch [{epoch+1}/{EPOCHS}], Loss: {loss.item():.6f}")
+        avg_loss = total_loss / len(train_loader)
+        print(f"Epoch [{epoch+1}/{EPOCHS}], Loss: {avg_loss:.6f}")
 
 # ------------------------
 # Evaluation
